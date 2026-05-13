@@ -1,0 +1,14 @@
+{
+  "name": "trade-review-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "trade-review.js",
+  "scripts": {
+    "start": "node trade-review.js serve",
+    "dashboard": "node trade-review.js dashboard"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
