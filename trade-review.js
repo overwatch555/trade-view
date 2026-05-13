@@ -429,33 +429,45 @@ function generateDashboardHtml(rows, options = {}) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>交易复盘看板</title>
     <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 20px; color: #111; }
-      .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-      @media (min-width: 960px) { .grid { grid-template-columns: 1fr 1fr; } }
-      .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #fff; }
-      .title { font-size: 18px; font-weight: 700; margin: 0 0 6px 0; }
-      .sub { margin: 0 0 10px 0; color: #555; font-size: 13px; }
-      #chartEmotion, #chartDecision, #chartFunds, #chartPnl { width: 100%; height: 320px; }
-      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 10px; color: #111; font-size: 14px; background: #f1f5f9; }
+      .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+      @media (min-width: 960px) { body { margin: 20px; background: #fff; } .grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
+      .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #fff; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+      .title { font-size: 16px; font-weight: 700; margin: 0 0 4px 0; }
+      @media (min-width: 960px) { .title { font-size: 18px; margin: 0 0 6px 0; } }
+      .sub { margin: 0 0 10px 0; color: #555; font-size: 12px; }
+      @media (min-width: 960px) { .sub { font-size: 13px; } }
+      #chartEmotion, #chartDecision, #chartFunds, #chartPnl { width: 100%; height: 260px; }
+      @media (min-width: 960px) { #chartEmotion, #chartDecision, #chartFunds, #chartPnl { height: 320px; } }
+      .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -14px; padding: 0 14px; }
+      @media (min-width: 960px) { .table-wrapper { margin: 0; padding: 0; } }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
       th, td { border-bottom: 1px solid #eee; padding: 8px 6px; text-align: left; vertical-align: top; }
       th { background: #fafafa; }
-      .hint { padding: 12px; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; }
+      .hint { padding: 12px; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; margin-bottom: 12px; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      .form { display: grid; grid-template-columns: 1fr; gap: 10px; }
-      @media (min-width: 960px) { .form { grid-template-columns: 1fr 1fr 1fr; } }
-      .row { display: flex; flex-direction: column; gap: 4px; }
-      .row label { font-size: 12px; color: #374151; }
-      input, select, textarea { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+      .form { display: grid; grid-template-columns: 1fr; gap: 12px; }
+      @media (min-width: 960px) { .form { grid-template-columns: 1fr 1fr 1fr; gap: 10px; } }
+      .row { display: flex; flex-direction: column; gap: 6px; }
+      @media (min-width: 960px) { .row { gap: 4px; } }
+      .row label { font-size: 13px; color: #374151; font-weight: 500; }
+      @media (min-width: 960px) { .row label { font-size: 12px; font-weight: normal; } }
+      input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 12px; font-size: 14px; width: 100%; box-sizing: border-box; background: #fff; appearance: none; }
+      @media (min-width: 960px) { input, select, textarea { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; appearance: auto; } }
       textarea { resize: vertical; }
-      details { border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px; background: #f8fafc; }
-      summary { cursor: pointer; font-size: 13px; color: #111; }
-      .detailGrid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
-      @media (min-width: 960px) { .detailGrid { grid-template-columns: 1fr 1fr 1fr; } }
-      .actions { display: flex; gap: 12px; align-items: center; grid-column: 1 / -1; }
-      button { background: #111827; color: #fff; border: 0; border-radius: 10px; padding: 10px 14px; font-size: 13px; cursor: pointer; }
+      details { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; background: #f8fafc; }
+      @media (min-width: 960px) { details { border: 1px dashed #cbd5e1; padding: 10px; } }
+      summary { cursor: pointer; font-size: 14px; color: #111; font-weight: 500; outline: none; }
+      @media (min-width: 960px) { summary { font-size: 13px; font-weight: normal; } }
+      .detailGrid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+      @media (min-width: 960px) { .detailGrid { grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; } }
+      .actions { display: flex; gap: 12px; align-items: center; grid-column: 1 / -1; margin-top: 4px; }
+      button { background: #111827; color: #fff; border: 0; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 500; cursor: pointer; flex: 1; touch-action: manipulation; }
+      @media (min-width: 960px) { button { padding: 10px 14px; font-size: 13px; font-weight: normal; flex: none; } }
       button:disabled { background: #94a3b8; cursor: not-allowed; }
-      .link { color: #2563eb; font-size: 13px; text-decoration: none; }
-      .msg { grid-column: 1 / -1; font-size: 12px; color: #ef4444; }
+      .link { color: #2563eb; font-size: 14px; text-decoration: none; text-align: center; }
+      @media (min-width: 960px) { .link { font-size: 13px; text-align: left; } }
+      .msg { grid-column: 1 / -1; font-size: 13px; color: #ef4444; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   </head>
@@ -487,27 +499,29 @@ function generateDashboardHtml(rows, options = {}) {
       </div>
       <div class="card" style="grid-column: 1 / -1;">
         <p class="title">最近20条记录</p>
-        <table>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>资金(U)</th>
-              <th>情绪分</th>
-              <th>情绪建议</th>
-              <th>回本强度</th>
-              <th>亏损反应</th>
-              <th>期待</th>
-              <th>实际交易</th>
-              <th>已实现盈亏(U)</th>
-              <th>交易笔数</th>
-              <th>最终决策</th>
-              <th>备注</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableHtml}
-          </tbody>
-        </table>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>资金(U)</th>
+                <th>情绪分</th>
+                <th>情绪建议</th>
+                <th>回本强度</th>
+                <th>亏损反应</th>
+                <th>期待</th>
+                <th>实际交易</th>
+                <th>已实现盈亏(U)</th>
+                <th>交易笔数</th>
+                <th>最终决策</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableHtml}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
     <script>
