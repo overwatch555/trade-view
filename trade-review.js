@@ -448,7 +448,8 @@ function generateDashboardHtml(rows, options = {}) {
 
   const lastRows = rows.slice(-20).reverse();
   const tableHtml = lastRows
-    .map((r) => {
+    .map((r, i) => {
+      const originalIndex = rows.length - 1 - i;
       return `<tr>
   <td>${escapeHtml(r.date)}</td>
   <td>${escapeHtml(r.total_funds_u)}</td>
@@ -462,6 +463,7 @@ function generateDashboardHtml(rows, options = {}) {
   <td>${escapeHtml(r.today_trades_count)}</td>
   <td>${escapeHtml(r.final_trade_decision)}</td>
   <td>${escapeHtml(r.notes)}</td>
+  <td><button type="button" class="btn-edit" data-index="${originalIndex}" style="padding:4px 8px; font-size:12px;">修改</button></td>
 </tr>`;
     })
     .join("\n");
@@ -712,6 +714,7 @@ function generateDashboardHtml(rows, options = {}) {
                 <th>交易笔数</th>
                 <th>最终决策</th>
                 <th>备注</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -727,6 +730,7 @@ function generateDashboardHtml(rows, options = {}) {
       const funds = ${JSON.stringify(funds)};
       const realizedPnlU = ${JSON.stringify(realizedPnlU)};
       const decisionCountSeries = ${JSON.stringify(decisionCountSeries)};
+      const allRowsData = ${JSON.stringify(rows)};
 
       const emotionChart = echarts.init(document.getElementById("chartEmotion"));
       emotionChart.setOption({
@@ -891,6 +895,45 @@ function generateDashboardHtml(rows, options = {}) {
       }
       updateCryptoPrices();
       setInterval(updateCryptoPrices, 30000); // refresh every 30s
+
+      document.querySelectorAll('.btn-edit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = e.target.getAttribute('data-index');
+          const row = allRowsData[idx];
+          if(!row) return;
+          
+          const form = document.getElementById("checkinForm");
+          if(!form) return;
+
+          // Fill form fields
+          Object.keys(row).forEach(k => {
+            const input = form.querySelector(\`[name="\${k}"]\`);
+            if(input) {
+              if (input.tagName === 'SELECT' || input.type === 'date') {
+                input.value = row[k];
+              } else {
+                input.value = row[k] === "" ? "" : row[k];
+              }
+            }
+          });
+
+          // Set hidden index
+          let hiddenInput = form.querySelector('[name="edit_index"]');
+          if(!hiddenInput) {
+            hiddenInput = document.createElement("input");
+            hiddenInput.type = "hidden";
+            hiddenInput.name = "edit_index";
+            form.appendChild(hiddenInput);
+          }
+          hiddenInput.value = idx;
+          
+          // Update button text
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if(submitBtn) submitBtn.textContent = "更新记录并刷新";
+          
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
     </script>
   </body>
 </html>`;
@@ -1089,8 +1132,27 @@ async function runServer({ port, host, allowPortFallback }) {
         }
 
         const { headers, row, summary } = buildRecord(payload);
-        ensureCsvHeaders(RECORDS_CSV_PATH, headers);
-        writeCsvRow(RECORDS_CSV_PATH, headers, row);
+        const editIndexStr = payload.edit_index;
+
+        if (editIndexStr !== undefined && editIndexStr !== "") {
+          const editIndex = parseInt(editIndexStr, 10);
+          const rows = readCsv(RECORDS_CSV_PATH);
+          if (editIndex >= 0 && editIndex < rows.length) {
+            rows[editIndex] = row;
+            // Write all back
+            const headerLine = headers.join(",");
+            const contentLines = rows.map(r => {
+              return headers.map(h => csvEscape(r[h] ?? "")).join(",");
+            });
+            fs.writeFileSync(RECORDS_CSV_PATH, [headerLine, ...contentLines].join("\r\n") + "\r\n", "utf8");
+          } else {
+            ensureCsvHeaders(RECORDS_CSV_PATH, headers);
+            writeCsvRow(RECORDS_CSV_PATH, headers, row);
+          }
+        } else {
+          ensureCsvHeaders(RECORDS_CSV_PATH, headers);
+          writeCsvRow(RECORDS_CSV_PATH, headers, row);
+        }
 
         const rows = readCsv(RECORDS_CSV_PATH);
         fs.writeFileSync(DASHBOARD_HTML_PATH, generateDashboardHtml(rows), "utf8");
