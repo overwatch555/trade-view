@@ -603,6 +603,10 @@ function generateDashboardHtml(rows, options = {}) {
     <div class="actions">
       <button type="submit">提交并刷新</button>
       <a class="link" href="/daily_records.csv" target="_blank" rel="noreferrer">下载CSV</a>
+      <label class="link" style="cursor:pointer;">
+        导入CSV
+        <input type="file" id="importCsvInput" accept=".csv" style="display:none;" />
+      </label>
     </div>
     <div id="formMsg" class="msg"></div>
   </form>
@@ -824,6 +828,35 @@ function generateDashboardHtml(rows, options = {}) {
             msgEl.textContent = String(err && err.message ? err.message : err);
           } finally {
             submitBtn.disabled = false;
+          }
+        });
+      }
+
+      const importCsvInput = document.getElementById("importCsvInput");
+      if (importCsvInput) {
+        importCsvInput.addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const msgEl = document.getElementById("formMsg") || document.createElement("div");
+          msgEl.textContent = "导入中...";
+          try {
+            const text = await file.text();
+            const res = await fetch("/api/import", {
+              method: "POST",
+              headers: { "Content-Type": "text/csv" },
+              body: text,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              msgEl.textContent = data && data.error ? data.error : "导入失败";
+              return;
+            }
+            alert("导入成功，刷新页面！");
+            window.location.reload();
+          } catch (err) {
+            msgEl.textContent = String(err && err.message ? err.message : err);
+          } finally {
+            importCsvInput.value = "";
           }
         });
       }
@@ -1062,6 +1095,59 @@ async function runServer({ port, host, allowPortFallback }) {
       } catch (err) {
         res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: String(err && err.message ? err.message : err) }));
+      }
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/import") {
+      try {
+        const bodyText = await readRequestBody(req);
+        if (!bodyText || !bodyText.includes("date")) {
+          throw new Error("Invalid CSV format");
+        }
+        
+        // Very basic merge: just append lines, skip the header if it matches, and rewrite
+        // We will read existing rows, read new rows from the uploaded text, combine by date (or just append)
+        const lines = bodyText.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length < 2) throw new Error("No data in CSV");
+        
+        const importedHeaders = lines[0].split(",");
+        const importedRows = lines.slice(1).map(line => {
+          const vals = line.split(",");
+          const obj = {};
+          importedHeaders.forEach((h, i) => obj[h] = vals[i] || "");
+          return obj;
+        });
+
+        // Merge with existing
+        const existingRows = fs.existsSync(RECORDS_CSV_PATH) ? readCsv(RECORDS_CSV_PATH) : [];
+        const combined = [...existingRows, ...importedRows];
+        
+        // Sort by date ascending
+        combined.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+        // Rewrite CSV
+        if (combined.length > 0) {
+          const allHeaders = Object.keys(combined[combined.length - 1]); // Use last row's headers
+          const headerLine = allHeaders.join(",");
+          const contentLines = combined.map(row => {
+            return allHeaders.map(h => {
+              const val = String(row[h] || "").replaceAll('"', '""');
+              return val.includes(",") ? `"${val}"` : val;
+            }).join(",");
+          });
+          fs.writeFileSync(RECORDS_CSV_PATH, [headerLine, ...contentLines].join("\n") + "\n", "utf8");
+        }
+
+        const newRows = readCsv(RECORDS_CSV_PATH);
+        const html = generateDashboardHtml(newRows, { withForm: false, showCliHint: false });
+        fs.writeFileSync(DASHBOARD_HTML_PATH, html, "utf8");
+
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true, count: importedRows.length }));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: err.message }));
       }
       return;
     }
