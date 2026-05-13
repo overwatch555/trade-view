@@ -17,6 +17,186 @@ function formatNumber(n, decimals = 2) {
   return num.toFixed(decimals);
 }
 
+function toNumberOrNull(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const num = Number(v);
+  return Number.isFinite(num) ? num : null;
+}
+
+function formatRange(min, max, decimals = 2) {
+  if (min === null && max === null) return "";
+  if (min === null) return formatNumber(max, decimals);
+  if (max === null) return formatNumber(min, decimals);
+  return `${formatNumber(min, decimals)}–${formatNumber(max, decimals)}`;
+}
+
+function defaultStopLossPct(input) {
+  const v = toNumberOrNull(input);
+  if (v === null) return -25;
+  if (v > -20) return -20;
+  if (v < -28) return -28;
+  return v;
+}
+
+function computeDecisionTable(row) {
+  if (!row) return { decisionHtml: "", logLine: "" };
+
+  const totalFundsU = toNumberOrNull(row.total_funds_u);
+  let riskMinU = toNumberOrNull(row.single_risk_min_u);
+  let riskMaxU = toNumberOrNull(row.single_risk_max_u);
+  let dailyMaxLossU = toNumberOrNull(row.daily_max_loss_u);
+  let weeklyMaxDrawdownMinU = toNumberOrNull(row.weekly_max_drawdown_min_u);
+  let weeklyMaxDrawdownMaxU = toNumberOrNull(row.weekly_max_drawdown_max_u);
+
+  if (totalFundsU !== null && (riskMinU === null || riskMaxU === null || dailyMaxLossU === null)) {
+    const risk = calcRisk(totalFundsU);
+    if (riskMinU === null) riskMinU = toNumberOrNull(risk.singleRiskMinU);
+    if (riskMaxU === null) riskMaxU = toNumberOrNull(risk.singleRiskMaxU);
+    if (dailyMaxLossU === null) dailyMaxLossU = toNumberOrNull(risk.dailyMaxLossU);
+    if (weeklyMaxDrawdownMinU === null) weeklyMaxDrawdownMinU = toNumberOrNull(risk.weeklyMaxDrawdownMinU);
+    if (weeklyMaxDrawdownMaxU === null) weeklyMaxDrawdownMaxU = toNumberOrNull(risk.weeklyMaxDrawdownMaxU);
+  }
+
+  const slPct = defaultStopLossPct(row.stop_loss_pct);
+  const slAbs = Math.abs(slPct / 100);
+
+  const posConservative = riskMinU !== null ? riskMinU / slAbs : null;
+  const posStandard = riskMaxU !== null ? riskMaxU / slAbs : null;
+  let posAggressive = null;
+  if (posStandard !== null) {
+    posAggressive = posStandard * 1.5;
+    if (dailyMaxLossU !== null) {
+      const cap = (dailyMaxLossU * 0.5) / slAbs;
+      posAggressive = Math.min(posAggressive, cap);
+    }
+  }
+
+  const emotionScore = toNumberOrNull(row.emotion_score);
+  const emotionSuggestion = row.emotion_suggestion || "";
+  const finalDecision = row.final_trade_decision || "";
+
+  const breakEvenPlan =
+    "+90%~+100% 卖 50%~60% 出本；剩余仓位移动止损；分批止盈（不要加仓摊平）";
+
+  const suggestedPosition = [
+    posConservative !== null ? `保守 ${formatNumber(posConservative, 2)}U` : "",
+    posStandard !== null ? `标准 ${formatNumber(posStandard, 2)}U` : "",
+    posAggressive !== null ? `进攻 ${formatNumber(posAggressive, 2)}U` : "",
+  ]
+    .filter(Boolean)
+    .join(" / ");
+
+  const action =
+    emotionScore !== null && emotionScore <= 6
+      ? "禁止交易：关盘/限时看盘 + 做复盘或模拟盘"
+      : finalDecision === "谨慎小仓"
+        ? "谨慎小仓：只做A+机会；不加仓；严格止损"
+        : finalDecision === "执行"
+          ? "执行：按计划；触发止损直接退出；不追单"
+          : "放弃：只复盘，不开仓";
+
+  const stopLossDisplay = `${formatNumber(slPct, 0)}%`;
+
+  const decisionHtml = `<div class="card" style="grid-column: 1 / -1;">
+  <p class="title">可视化决策表（最新一条记录）</p>
+  <p class="sub">按你的风控模板输出：资金 / 风险 / 仓位 / 止损 / 出本 / 决策</p>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>项目</th>
+          <th>数值</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>当前资金</td>
+          <td>${escapeHtml(totalFundsU !== null ? `${formatNumber(totalFundsU, 2)}U` : "")}</td>
+          <td>用于计算风险上限</td>
+        </tr>
+        <tr>
+          <td>单笔风险</td>
+          <td>${escapeHtml(
+            riskMinU !== null || riskMaxU !== null ? `${formatRange(riskMinU, riskMaxU, 2)}U` : ""
+          )}</td>
+          <td>0.5%–0.6%</td>
+        </tr>
+        <tr>
+          <td>单日最大亏损</td>
+          <td>${escapeHtml(dailyMaxLossU !== null ? `${formatNumber(dailyMaxLossU, 2)}U` : "")}</td>
+          <td>达到后停止交易</td>
+        </tr>
+        <tr>
+          <td>单周最大回撤</td>
+          <td>${escapeHtml(
+            weeklyMaxDrawdownMinU !== null || weeklyMaxDrawdownMaxU !== null
+              ? `${formatRange(weeklyMaxDrawdownMinU, weeklyMaxDrawdownMaxU, 2)}U`
+              : ""
+          )}</td>
+          <td>超出说明策略/情绪失控</td>
+        </tr>
+        <tr>
+          <td>建议仓位</td>
+          <td>${escapeHtml(suggestedPosition)}</td>
+          <td>按止损 ${escapeHtml(stopLossDisplay)} 反推最大持仓</td>
+        </tr>
+        <tr>
+          <td>止损位</td>
+          <td>${escapeHtml(stopLossDisplay)}</td>
+          <td>默认 -25%，范围 -20% 到 -28%</td>
+        </tr>
+        <tr>
+          <td>出本计划</td>
+          <td>${escapeHtml(breakEvenPlan)}</td>
+          <td>先活下来，再谈收益</td>
+        </tr>
+        <tr>
+          <td>情绪分</td>
+          <td>${escapeHtml(emotionScore !== null ? `${formatNumber(emotionScore, 0)}/10` : "")}</td>
+          <td>${escapeHtml(emotionSuggestion)}</td>
+        </tr>
+        <tr>
+          <td>最终决策</td>
+          <td>${escapeHtml(finalDecision)}</td>
+          <td>${escapeHtml(action)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="row" style="margin-top: 10px;">
+    <label>交易日志（复制用）</label>
+    <textarea rows="2" readonly>${escapeHtml(
+      [
+        row.date || "",
+        row.symbol || "",
+        row.mc || "",
+        row.notes || "",
+        row.stop_loss_pct || stopLossDisplay,
+        breakEvenPlan,
+        row.suggested_position_u || "",
+        row.emotion_score || "",
+        finalDecision,
+      ].join(" | ")
+    )}</textarea>
+  </div>
+</div>`;
+
+  const logLine = [
+    row.date || "",
+    row.symbol || "",
+    row.mc || "",
+    row.notes || "",
+    row.stop_loss_pct || stopLossDisplay,
+    breakEvenPlan,
+    row.suggested_position_u || "",
+    row.emotion_score || "",
+    finalDecision,
+  ].join(" | ");
+
+  return { decisionHtml, logLine };
+}
+
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
@@ -230,6 +410,8 @@ function generateDashboardHtml(rows, options = {}) {
   const withForm = Boolean(options.withForm);
   const showCliHint = options.showCliHint !== false;
   const defaultFundsU = options.defaultFundsU ? String(options.defaultFundsU) : "";
+  const latestRow = rows.length > 0 ? rows[rows.length - 1] : null;
+  const { decisionHtml } = computeDecisionTable(latestRow);
 
   const dates = rows.map((r) => r.date);
   const emotionScores = rows.map((r) => Number(r.emotion_score || 0));
@@ -477,6 +659,7 @@ function generateDashboardHtml(rows, options = {}) {
     ${emptyHint}
     <div class="grid">
       ${formHtml}
+      ${decisionHtml}
       <div class="card">
         <p class="title">情绪分趋势</p>
         <p class="sub">1-10分；≤6 为禁止交易区间</p>
