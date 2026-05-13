@@ -84,12 +84,12 @@ function computeDecisionTable(row) {
     "+90%~+100% 卖 50%~60% 出本；剩余仓位移动止损；分批止盈（不要加仓摊平）";
 
   const suggestedPosition = [
-    posConservative !== null ? `保守 ${formatNumber(posConservative, 2)}U` : "",
-    posStandard !== null ? `标准 ${formatNumber(posStandard, 2)}U` : "",
-    posAggressive !== null ? `进攻 ${formatNumber(posAggressive, 2)}U` : "",
+    posConservative !== null ? `保守 <span class="crypto-equiv" data-u="${posConservative}">${formatNumber(posConservative, 2)}U</span>` : "",
+    posStandard !== null ? `标准 <span class="crypto-equiv" data-u="${posStandard}">${formatNumber(posStandard, 2)}U</span>` : "",
+    posAggressive !== null ? `进攻 <span class="crypto-equiv" data-u="${posAggressive}">${formatNumber(posAggressive, 2)}U</span>` : "",
   ]
     .filter(Boolean)
-    .join(" / ");
+    .join("<br/>");
 
   const action =
     emotionScore !== null && emotionScore <= 6
@@ -143,7 +143,7 @@ function computeDecisionTable(row) {
         </tr>
         <tr>
           <td>建议仓位</td>
-          <td>${escapeHtml(suggestedPosition)}</td>
+          <td>${suggestedPosition}</td>
           <td>按止损 ${escapeHtml(stopLossDisplay)} 反推最大持仓</td>
         </tr>
         <tr>
@@ -827,6 +827,32 @@ function generateDashboardHtml(rows, options = {}) {
           }
         });
       }
+
+      async function updateCryptoPrices() {
+        try {
+          const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BNBUSDT%22,%22ETHUSDT%22,%22SOLUSDT%22%5D');
+          if (!res.ok) return;
+          const data = await res.json();
+          const prices = {};
+          data.forEach(item => {
+            if(item.symbol === 'BNBUSDT') prices.BNB = parseFloat(item.price);
+            if(item.symbol === 'ETHUSDT') prices.ETH = parseFloat(item.price);
+            if(item.symbol === 'SOLUSDT') prices.SOL = parseFloat(item.price);
+          });
+          document.querySelectorAll('.crypto-equiv').forEach(el => {
+            const u = parseFloat(el.getAttribute('data-u'));
+            if(isNaN(u)) return;
+            const bnb = prices.BNB ? (u / prices.BNB).toFixed(4) : '?';
+            const eth = prices.ETH ? (u / prices.ETH).toFixed(4) : '?';
+            const sol = prices.SOL ? (u / prices.SOL).toFixed(3) : '?';
+            el.innerHTML = \`\${u.toFixed(2)}U <span style="color:#64748b;font-size:0.9em;font-weight:normal;">(≈ \${bnb} BNB | \${eth} ETH | \${sol} SOL)</span>\`;
+          });
+        } catch(e) {
+          console.error('Failed to fetch crypto prices:', e);
+        }
+      }
+      updateCryptoPrices();
+      setInterval(updateCryptoPrices, 30000); // refresh every 30s
     </script>
   </body>
 </html>`;
