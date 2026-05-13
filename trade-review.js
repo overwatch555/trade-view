@@ -4,8 +4,13 @@ const readline = require("readline");
 const http = require("http");
 const url = require("url");
 
-const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
-fs.mkdirSync(DATA_DIR, { recursive: true });
+let DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (err) {
+  console.warn(`[WARN] 无法创建目录 ${DATA_DIR} (${err.code})，将回退使用默认目录: ${__dirname}`);
+  DATA_DIR = __dirname;
+}
 
 const RECORDS_CSV_PATH = path.join(DATA_DIR, "daily_records.csv");
 const DASHBOARD_HTML_PATH = path.join(DATA_DIR, "dashboard.html");
