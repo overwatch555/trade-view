@@ -60,8 +60,8 @@ function computeDecisionTable(row) {
   const slPct = defaultStopLossPct(row.stop_loss_pct);
   const slAbs = Math.abs(slPct / 100);
 
-  const posConservative = riskMinU !== null ? riskMinU / slAbs : null;
-  const posStandard = riskMaxU !== null ? riskMaxU / slAbs : null;
+  let posConservative = riskMinU !== null ? riskMinU / slAbs : null;
+  let posStandard = riskMaxU !== null ? riskMaxU / slAbs : null;
   let posAggressive = null;
   if (posStandard !== null) {
     posAggressive = posStandard * 1.5;
@@ -70,6 +70,11 @@ function computeDecisionTable(row) {
       posAggressive = Math.min(posAggressive, cap);
     }
   }
+
+  // Enforce minimum position size of 5U
+  if (posConservative !== null && posConservative < 5) posConservative = 5;
+  if (posStandard !== null && posStandard < 5) posStandard = 5;
+  if (posAggressive !== null && posAggressive < 5) posAggressive = 5;
 
   const emotionScore = toNumberOrNull(row.emotion_score);
   const emotionSuggestion = row.emotion_suggestion || "";
