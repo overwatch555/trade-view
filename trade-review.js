@@ -52,6 +52,9 @@ function computeDecisionTable(row) {
   let dailyMaxLossU = toNumberOrNull(row.daily_max_loss_u);
   let weeklyMaxDrawdownMinU = toNumberOrNull(row.weekly_max_drawdown_min_u);
   let weeklyMaxDrawdownMaxU = toNumberOrNull(row.weekly_max_drawdown_max_u);
+  let dailyProfitStopU = null;
+  let weeklyProfitStopU = null;
+  let monthlyProfitStopU = null;
 
   if (totalFundsU !== null && (riskMinU === null || riskMaxU === null || dailyMaxLossU === null)) {
     const risk = calcRisk(totalFundsU);
@@ -60,6 +63,14 @@ function computeDecisionTable(row) {
     if (dailyMaxLossU === null) dailyMaxLossU = toNumberOrNull(risk.dailyMaxLossU);
     if (weeklyMaxDrawdownMinU === null) weeklyMaxDrawdownMinU = toNumberOrNull(risk.weeklyMaxDrawdownMinU);
     if (weeklyMaxDrawdownMaxU === null) weeklyMaxDrawdownMaxU = toNumberOrNull(risk.weeklyMaxDrawdownMaxU);
+    dailyProfitStopU = toNumberOrNull(risk.dailyProfitStopU);
+    weeklyProfitStopU = toNumberOrNull(risk.weeklyProfitStopU);
+    monthlyProfitStopU = toNumberOrNull(risk.monthlyProfitStopU);
+  } else if (totalFundsU !== null) {
+    const risk = calcRisk(totalFundsU);
+    dailyProfitStopU = toNumberOrNull(risk.dailyProfitStopU);
+    weeklyProfitStopU = toNumberOrNull(risk.weeklyProfitStopU);
+    monthlyProfitStopU = toNumberOrNull(risk.monthlyProfitStopU);
   }
 
   const slPct = defaultStopLossPct(row.stop_loss_pct);
@@ -107,6 +118,10 @@ function computeDecisionTable(row) {
 
   const stopLossDisplay = `${formatNumber(slPct, 0)}%`;
 
+  const profitStopDisplay = dailyProfitStopU !== null
+    ? `单日 +${formatNumber(dailyProfitStopU, 2)}U / 单周 +${formatNumber(weeklyProfitStopU, 2)}U / 单月 +${formatNumber(monthlyProfitStopU, 2)}U`
+    : "";
+
   const decisionHtml = `<div class="card" style="grid-column: 1 / -1;">
   <p class="title">可视化决策表（最新一条记录）</p>
   <p class="sub">按你的风控模板输出：资金 / 风险 / 仓位 / 止损 / 出本 / 决策</p>
@@ -145,6 +160,11 @@ function computeDecisionTable(row) {
               : ""
           )}</td>
           <td>超出说明策略/情绪失控</td>
+        </tr>
+        <tr>
+          <td><strong>盈利停手线</strong></td>
+          <td style="color:#10b981; font-weight:bold;">${escapeHtml(profitStopDisplay)}</td>
+          <td>达标后强制休息，锁定利润，严防“赚了又亏回去”（日5%/周15%/月30%）</td>
         </tr>
         <tr>
           <td>建议仓位</td>
@@ -228,6 +248,9 @@ function calcRisk(totalFundsU) {
       dailyMaxLossU: "",
       weeklyMaxDrawdownMinU: "",
       weeklyMaxDrawdownMaxU: "",
+      dailyProfitStopU: "",
+      weeklyProfitStopU: "",
+      monthlyProfitStopU: "",
     };
   }
 
@@ -236,6 +259,10 @@ function calcRisk(totalFundsU) {
   const dailyMaxLossU = funds * 0.03;
   const weeklyMaxDrawdownMinU = funds * 0.08;
   const weeklyMaxDrawdownMaxU = funds * 0.1;
+  
+  const dailyProfitStopU = funds * 0.05;
+  const weeklyProfitStopU = funds * 0.15;
+  const monthlyProfitStopU = funds * 0.30;
 
   return {
     singleRiskMinU,
@@ -243,6 +270,9 @@ function calcRisk(totalFundsU) {
     dailyMaxLossU,
     weeklyMaxDrawdownMinU,
     weeklyMaxDrawdownMaxU,
+    dailyProfitStopU,
+    weeklyProfitStopU,
+    monthlyProfitStopU,
   };
 }
 
