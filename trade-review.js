@@ -655,6 +655,7 @@ function generateDashboardHtml(rows, options = {}) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="base:app_id" content="6a17941025aa6d993ec4db0e" />
     <title>交易复盘看板</title>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 10px; color: #111; font-size: 14px; background: #f1f5f9; }
